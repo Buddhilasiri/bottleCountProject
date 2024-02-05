@@ -1,0 +1,75 @@
+const fs = require('fs');
+const mqtt = require('mqtt');
+
+// Your AWS IoT endpoint
+const awsEndpoint = "a1iblz78p7739j-ats.iot.ap-southeast-2.amazonaws.com";
+// Port for MQTT over TLS
+const port = 8883;
+
+// Paths to the certificates and key files
+const PATH_TO_CERTIFICATE = 'C:/Users/BUDDHILASIRI/PrefillVirtualDevice/esp32_count_prefill_certificates/9221f18d6f5c5b4f14990c10ff0b97fc20d72bc331e66145c213312437e2c5ec-certificate.pem.crt';
+const PATH_TO_PRIVATE_KEY = 'C:/Users/BUDDHILASIRI/PrefillVirtualDevice/esp32_count_prefill_certificates/9221f18d6f5c5b4f14990c10ff0b97fc20d72bc331e66145c213312437e2c5ec-private.pem.key';
+const PATH_TO_CA_CERT = 'C:/Users/BUDDHILASIRI/PrefillVirtualDevice/esp32_count_prefill_certificates/AmazonRootCA1 (2).pem';
+
+// Load the certificates and key
+const KEY = fs.readFileSync(PATH_TO_PRIVATE_KEY);
+const CERT = fs.readFileSync(PATH_TO_CERTIFICATE);
+const CA_CERT = fs.readFileSync(PATH_TO_CA_CERT);
+
+// MQTT client options
+const options = {
+  port: port,
+  host: awsEndpoint,
+  key: KEY,
+  cert: CERT,
+  ca: CA_CERT,
+  clientId: 'virtual-device-1', // The clientId should be unique for each device
+  protocol: 'mqtts', // Use mqtts for secure connection over TLS
+};
+
+// Connect to AWS IoT Core using MQTT
+const client = mqtt.connect(options);
+
+// Variables to hold bottle count and rate
+let bottleCount = 0;
+let lastBottleTimestamp = Date.now();
+let bottleRate = 0; // Bottles per second
+
+// Function to simulate bottle detection
+function simulateBottlePassing() {
+  // Increment the bottle count
+  bottleCount++;
+  
+  // Calculate the rate of bottles per second
+  let now = Date.now();
+  bottleRate = 1 / ((now - lastBottleTimestamp) / 1000); // Calculate rate in bottles/sec
+  lastBottleTimestamp = now;
+  
+  // Log to console (for debugging purposes)
+  console.log(`Bottle count: ${bottleCount}, Bottle rate: ${bottleRate.toFixed(2)} bottles/sec`);
+}
+
+// Function to publish bottle data to AWS IoT
+function publishBottleData() {
+  const payload = {
+    bottleCount: bottleCount,
+    bottleRate: bottleRate.toFixed(2) // Format to two decimal places
+  };
+
+  client.publish('prefill/count/device1', JSON.stringify(payload));
+}
+
+client.on('connect', function () {
+  console.log('Connected to AWS IoT Core');
+
+  // Simulate a bottle passing every second (for testing purposes)
+  setInterval(simulateBottlePassing, 1000);
+
+  // Publish bottle data every 10 seconds
+  setInterval(publishBottleData, 10000);
+});
+
+client.on('error', function (error) {
+  console.log('Connection error:', error);
+});
+// Replace 'your/topic' with the actual MQTT topic you want to publish to
